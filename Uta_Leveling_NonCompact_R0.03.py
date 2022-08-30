@@ -641,7 +641,7 @@ class Ui_MainWindow(QMainWindow):
         else:
             logging.error('긴급오더 리스트가 없습니다. 다시 한번 확인해주세요')
     def updateProgressbar(self, val):
-        self.progressbar.setvalue(val)
+        self.progressbar.setValue(val)
 
     def selectStartDate(self):
         self.w = CalendarWindow()
@@ -961,7 +961,7 @@ class Ui_MainWindow(QMainWindow):
                 limitCnt = constructTempCnt/2
                 #착공량 분배 로직
                 for i in dfMergeResultSfReset.index:
-                    self.progressbar.setvalue(i/2)
+                    self.progressbar.setValue(i/2)
                     if constructTempCnt > 0:
                         if dfMergeResultSfReset['홀딩오더'][i] != '대상':
                             if dfMergeResultSfReset['긴급오더'][i] != '대상':
@@ -1036,7 +1036,7 @@ class Ui_MainWindow(QMainWindow):
                                 constructTempCnt -= float(dfMergeResultSfReset['착공수량'][i]) * float(dfMergeResultSfReset['공수배율'][i])
                                 dfCopy = dfCopy.append(dfMergeResultSfReset.iloc[i])
                     else:
-                        self.progressbar.setvalue(dfMergeResultSfReset.index[-1]/2)
+                        self.progressbar.setValue(dfMergeResultSfReset.index[-1]/2)
                         break
                 #디버그용 파일 출력
                 if isDebug:
@@ -1115,7 +1115,7 @@ class Ui_MainWindow(QMainWindow):
                 self.progressbar.setRange(0,(dfMergeResultSfReset.index[-1]/2) + dfCopy.index[-1])
                 #개별 착공으로 분할
                 for i in dfCopy.index :
-                    self.progressbar.setvalue((dfMergeResultSfReset.index[-1]/2)+i)
+                    self.progressbar.setValue((dfMergeResultSfReset.index[-1]/2)+i)
                     for j in dfMergeOrder.index:
                         if dfCopy['Linkage Number'][i] == dfMergeOrder['Linkage Number'][j]:
                             if j > 0:
