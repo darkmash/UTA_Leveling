@@ -686,12 +686,16 @@ class Ui_MainWindow(QMainWindow):
                             logging.info('마스터 파일 및 기종분류 기준표를 정상적으로 불러왔습니다.')
                         else:
                             logging.error('%s 파일이 없습니다. 확인해주세요.', calendarFilePath)
+                            self.runBtn.setEnabled(True)
                     else:
                         logging.error('%s 파일이 없습니다. 확인해주세요.', conditionFilePath)
+                        self.runBtn.setEnabled(True)
                 else:
                     logging.error('%s 파일이 없습니다. 확인해주세요.', levelingListFilePath)
+                    self.runBtn.setEnabled(True)
             else:
                 logging.error('%s 파일이 없습니다. 확인해주세요.', utaOrderFilePath)
+                self.runBtn.setEnabled(True)
             return masterFileList
 
         def checkWorkDay(df, today, compDate):
@@ -818,14 +822,19 @@ class Ui_MainWindow(QMainWindow):
                 dfMergeResultS['남은 워킹데이'] = np.nan
                 #기종 구분 기준표 불러오기
                 dfCondition = pd.read_excel(listMasterFile[2])
-                dfCondition['日(LINE)가능대수'] = dfCondition['日(LINE)가능대수'].fillna('-')
-                dfCondition['Cycle 기준 대수'] = dfCondition['Cycle 기준 대수'].fillna('-')
-                dfCondition['공수 배율'] = dfCondition['공수 배율'].fillna(1)
-                dfCondition['특수 구분 (우선 순위)'] = dfCondition['특수 구분 (우선 순위)'].fillna('일반')
-                dfCondition['착공비율(%)'] = dfCondition['착공비율(%)'].fillna(0.6)
+                #셀 병합시 바로 이전 값을 가지고옴
+                dfCondition['No'] = dfCondition['No'].fillna(method='ffill')
+                dfCondition['日(LINE)가능대수'] = dfCondition['日(LINE)가능대수'].fillna(method='ffill')
+                dfCondition['착공비율(%)'] = dfCondition['착공비율(%)'].fillna(method='ffill')
+                dfCondition['착공비율(대수)'] = dfCondition['착공비율(대수)'].fillna(method='ffill')
+                dfCondition['Cycle 기준 대수'] = dfCondition['Cycle 기준 대수'].fillna(method='ffill')
+                dfCondition['공수 배율'] = dfCondition['공수 배율'].fillna(method='ffill')
+                dfCondition['특수 구분 (우선 순위)'] = dfCondition['특수 구분 (우선 순위)'].fillna(method='ffill')
+                dfCondition['MAX 착공 필요'] = dfCondition['MAX 착공 필요'].fillna(method='ffill')
                 #최대착공가능량 및 사양별 착공량, UT용 착공량 저장을 위한 변수 선언
                 constructTempCnt = float(maxConstructCnt)
                 capableCntDic = {}
+                preOrderDic = {}
                 # 기종 분류 기준표와 착공 수주 Data의 비교로직
                 for i in dfCondition.index:
                     #일 가능대수 없을 경우, 최대착공량과 동일하게 변경
@@ -833,6 +842,7 @@ class Ui_MainWindow(QMainWindow):
                         capableCntDic[float(dfCondition['No'][i])] = maxConstructCnt
                     else:
                         capableCntDic[float(dfCondition['No'][i])] = dfCondition['日(LINE)가능대수'][i]
+                        preOrderDic[float(dfCondition['No'][i])] = math.ceil(float(dfCondition['日(LINE)가능대수'][i]) * float(dfCondition['착공비율(%)'][i]))
                 for i in dfMergeResultS.index:  
                     #불요 모델 4850U1-□, UTAP□□□ 삭제
                     if str(dfMergeResultS['MS Code'][i]).find('4850U1') > -1 or str(dfMergeResultS['MS Code'][i]).find('UTAP') > -1:
@@ -845,7 +855,8 @@ class Ui_MainWindow(QMainWindow):
                         dfMergeResultS['UT32A, UT52A, UM33A구분여부'][i] = 'UT32A, UT52A, UM33A'
                     #착공 지정일이 당일보다 앞일 경우, 긴급오더로 지정
                     dt = pd.to_datetime(dfMergeResultS['Planned Prod. Completion date'][i], unit='s')
-                    dtInput = pd.to_datetime(datetime.strptime(self.labelDate.text(), '%Y-%m-%d'))
+                    if self.labelDate.text() != '미선택':
+                        dtInput = pd.to_datetime(datetime.strptime(self.labelDate.text(), '%Y-%m-%d'))
                     if self.labelDate.text() == '미선택':
                         if  dt < pd.Timestamp.now():
                             dfMergeResultS['긴급오더'][i] = '대상'
@@ -909,10 +920,9 @@ class Ui_MainWindow(QMainWindow):
                                     if dfMergeResultS['공수배율'][i] == "" or dfMergeResultS['공수배율'][i] < dfCondition['공수 배율'][j]:
                                         dfMergeResultS['공수배율'][i] = dfCondition['공수 배율'][j]
                                     dfMergeResultS['착공비율(%)'][i] = dfCondition['착공비율(%)'][j]
-                                    if str(dfCondition['MAX 착공 필요'][j]) != 'nan' and str(dfCondition['MAX 착공 필요'][j]) != '':
+                                    if str(dfCondition['MAX 착공 필요'][j]) != 'nan' and str(dfCondition['MAX 착공 필요'][j]) != '' and str(dfCondition['MAX 착공 필요'][j]) != '-':
                                         dfMergeResultS['MAX 착공 필요'][i] = '대상'
                                         dfMergeResultS['착공비율(%)'][i] = 1.0
-                                        dfCondition['착공비율(%)'][j] = 1.0
                             elif mscode != '.....-...-..':
                                 if dfCondition['특수 구분 (우선 순위)'][j] == '특수':
                                     if dfMergeResultS['특수사양'][i] == "":
@@ -929,10 +939,9 @@ class Ui_MainWindow(QMainWindow):
                                 if dfMergeResultS['공수배율'][i] == "" or dfMergeResultS['공수배율'][i] < dfCondition['공수 배율'][j]:
                                     dfMergeResultS['공수배율'][i] = dfCondition['공수 배율'][j]
                                     dfMergeResultS['착공비율(%)'][i] = dfCondition['착공비율(%)'][j]
-                                    if str(dfCondition['MAX 착공 필요'][j]) != 'nan' and str(dfCondition['MAX 착공 필요'][j]) != '':
+                                    if str(dfCondition['MAX 착공 필요'][j]) != 'nan' and str(dfCondition['MAX 착공 필요'][j]) != '' and str(dfCondition['MAX 착공 필요'][j]) != '-':
                                         dfMergeResultS['MAX 착공 필요'][i] = '대상'
                                         dfMergeResultS['착공비율(%)'][i] = 1.0
-                                        dfCondition['착공비율(%)'][j] = 1.0
                 #조건에 맞지않는 사양은 공수배율 1로 설정, 필요공수도 배율에 맞게 미착공수량*1로 설정
                 dfMergeResultS.loc[dfMergeResultS['공수배율'] == 0, '공수배율'] = 1
                 #디버그용 파일 출력
@@ -999,20 +1008,74 @@ class Ui_MainWindow(QMainWindow):
                 #     dfMergeResultSfReset['특수'+str(x+1) + '누적착공량'] = 0
                 # for y in range(0,maxNormalCommaCnt+1):
                 #     dfMergeResultSfReset['일반'+str(y+1) + '누적착공량'] = 0
-                dfMergeResultSfReset['누적착공수량'] = 0
+                # dfMergeResultSfReset['누적착공수량'] = 0
+                # dfMergeResultSfReset['누적착공수량/남은 워킹데이'] = 0
+                dfMergeResultSfReset['선행착공대상'] = ''
                 integCntDic = {}
+                copyCntDic = capableCntDic.copy()
                 for i in dfMergeResultSfReset.index:
                     for key, value in capableCntDic.items():
-                        if str(key) in str(dfMergeResultSfReset['특수사양'][i]) or str(key) in str(dfMergeResultSfReset['일반사양'][i]):
-                            if key in integCntDic:
-                                integCntDic[key] += dfMergeResultSfReset['미착공수량'][i]
-                            else:
-                                integCntDic[key] = dfMergeResultSfReset['미착공수량'][i]
-                            dfMergeResultSfReset['누적착공수량'][i] = integCntDic[key]
-                
+                        for x in range(0,maxSpCommaCnt+1):
+                            if str(dfMergeResultSfReset['특수사양'+str(x+1)][i]) != '' and str(dfMergeResultSfReset['특수사양'+str(x+1)][i]) != 'nan':
+                                if key == float(dfMergeResultSfReset['특수사양'+str(x+1)][i]):
+                                    if key in integCntDic:
+                                        integCntDic[key] += dfMergeResultSfReset['미착공수량'][i]
+                                    else:
+                                        integCntDic[key] = dfMergeResultSfReset['미착공수량'][i]
+                        for y in range(0,maxNormalCommaCnt+1):
+                            if str(dfMergeResultSfReset['일반사양'+str(y+1)][i]) != '' and str(dfMergeResultSfReset['일반사양'+str(y+1)][i]) != 'nan':
+                                if key == float(dfMergeResultSfReset['일반사양'+str(y+1)][i]):                             
+                                    if key in integCntDic:
+                                        integCntDic[key] += dfMergeResultSfReset['미착공수량'][i]
+                                    else:
+                                        integCntDic[key] = dfMergeResultSfReset['미착공수량'][i]
+                    for x in range(0,maxSpCommaCnt+1):
+                        if str(dfMergeResultSfReset['특수사양'+str(x+1)][i]) != '' and str(dfMergeResultSfReset['특수사양'+str(x+1)][i]) != 'nan':
+                            limitCopyCnt = capableCntDic[float(dfMergeResultSfReset['특수사양'+str(x+1)][i])]
+                            if (math.ceil(limitCopyCnt) <= (integCntDic[float(dfMergeResultSfReset['특수사양'+str(x+1)][i])]/dfMergeResultSfReset['남은 워킹데이'][i])) and copyCntDic[float(dfMergeResultSfReset['특수사양'+str(x+1)][i])] > 0:
+                                logging.info('「%s」 사양이 「완성지정일: %s」 까지 현재 일 가능대수로는 착공량 부족이 예상됩니다.', dfCondition[dfCondition['No'] == float(dfMergeResultSfReset['특수사양'+str(x+1)][i])]['그룹명'].values[0], dfMergeResultSfReset['Planned Prod. Completion date'][i])     
+                            limitCnt = capableCntDic[float(dfMergeResultSfReset['특수사양'+str(x+1)][i])] * float(dfMergeResultSfReset['착공비율(%)'][i])
+                            if (math.ceil(limitCnt) <= (integCntDic[float(dfMergeResultSfReset['특수사양'+str(x+1)][i])]/dfMergeResultSfReset['남은 워킹데이'][i])) and preOrderDic[float(dfMergeResultSfReset['특수사양'+str(x+1)][i])] > 0:
+                                for j in dfMergeResultSfReset.index:
+                                    if dfMergeResultSfReset['특수사양'+str(x+1)][i] in dfMergeResultSfReset['특수사양'][j]:
+                                        if preOrderDic[float(dfMergeResultSfReset['특수사양'+str(x+1)][i])] > 0:
+                                            dfMergeResultSfReset['선행착공대상'][j] = '대상'
+                                            preOrderDic[float(dfMergeResultSfReset['특수사양'+str(x+1)][i])] -= dfMergeResultSfReset['착공수량'][j]
+                                        else:                                            
+                                            break
+
+                    for y in range(0,maxNormalCommaCnt+1):
+                        if str(dfMergeResultSfReset['일반사양'+str(y+1)][i]) != '' and str(dfMergeResultSfReset['일반사양'+str(y+1)][i]) != 'nan':
+                            limitCopyCnt = capableCntDic[float(dfMergeResultSfReset['일반사양'+str(y+1)][i])]
+                            if (math.ceil(limitCopyCnt) <= (integCntDic[float(dfMergeResultSfReset['일반사양'+str(y+1)][i])]/dfMergeResultSfReset['남은 워킹데이'][i])) and copyCntDic[float(dfMergeResultSfReset['일반사양'+str(y+1)][i])] > 0:
+                                logging.info('「%s」 사양이 「완성지정일: %s」 까지 현재 일 가능대수로는 착공량 부족이 예상됩니다.', dfCondition[dfCondition['No'] == float(dfMergeResultSfReset['일반사양'+str(y+1)][i])]['그룹명'].values[0], dfMergeResultSfReset['Planned Prod. Completion date'][i])     
+                            limitCnt = capableCntDic[float(dfMergeResultSfReset['일반사양'+str(y+1)][i])] * float(dfMergeResultSfReset['착공비율(%)'][i])
+                            if (math.ceil(limitCnt) <= (integCntDic[float(dfMergeResultSfReset['일반사양'+str(y+1)][i])]/dfMergeResultSfReset['남은 워킹데이'][i])) and preOrderDic[float(dfMergeResultSfReset['일반사양'+str(y+1)][i])]  > 0:
+                                for j in dfMergeResultSfReset.index:
+                                    # print(dfMergeResultSfReset['일반사양'+str(y+1)][i])
+                                    # print(dfMergeResultSfReset['일반사양'][j])
+                                    if str(dfMergeResultSfReset['일반사양'+str(y+1)][i]) in str(dfMergeResultSfReset['일반사양'][j]):
+                                        if preOrderDic[float(dfMergeResultSfReset['일반사양'+str(y+1)][i])]  > 0:
+                                            dfMergeResultSfReset['선행착공대상'][j] = '대상'
+                                            preOrderDic[float(dfMergeResultSfReset['일반사양'+str(y+1)][i])] -= dfMergeResultSfReset['착공수량'][j]
+                                        else:
+                                            break
+
+                dfMergeResultSfReset = dfMergeResultSfReset.sort_values(by=['긴급오더', 
+                                                                            'MAX 착공 필요',
+                                                                            '선행착공대상',
+                                                                            'Planned Prod. Completion date',
+                                                                            '특수사양',
+                                                                            '일반사양'], 
+                                                                            ascending=[False,
+                                                                                        False,
+                                                                                        False,
+                                                                                        True,
+                                                                                        True,
+                                                                                        True])
                 if self.isDebug:
                     dfMergeResultSfReset.to_excel('.\\debug\\flow10-2.xlsx')
-                
+
                 QApplication.processEvents()
                 self.progressbar.setRange(0,dfMergeResultSfReset.index[-1])
 
@@ -1279,10 +1342,13 @@ class Ui_MainWindow(QMainWindow):
                 self.runBtn.setEnabled(True)
             elif int(self.maxOrderinput.text()) == 0:
                 logging.warning('최대 착공량이 0입니다. 다시 입력해주세요.')
+                self.runBtn.setEnabled(True)
             elif len(self.maxOrderinput.text()) == 0:
                 logging.warning('최대 착공량이 입력되지 않았습니다.')
+                self.runBtn.setEnabled(True)
         except Exception as e:
             logging.exception(e, exc_info=True)                     
+            self.runBtn.setEnabled(True)
                 
 if __name__ == '__main__':
     import sys
