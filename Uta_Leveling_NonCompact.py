@@ -583,7 +583,7 @@ class Ui_MainWindow(QMainWindow):
         self.runBtn.clicked.connect(self.startLeveling)
         self.cbLimit.stateChanged.connect(self.changeCbLimit)
         #디버그용 플래그
-        self.isDebug = False
+        self.isDebug = True
         if self.isDebug:
             self.debugDate = QLineEdit(self.groupBox)
             self.debugDate.setObjectName('debugDate')
@@ -1079,9 +1079,14 @@ class Ui_MainWindow(QMainWindow):
                                                                                         True,
                                                                                         True,
                                                                                         True])
+                #인덱스 재설정
+                dfMergeResultSfReset = dfMergeResultSfReset.reset_index(level=None, drop=False, inplace=False)
+                #이전 인덱스 삭제
+                dfMergeResultSfReset.drop('index', axis=1, inplace=True)
+
                 if self.isDebug:
                     dfMergeResultSfReset.to_excel('.\\debug\\flow10-2.xlsx')
-
+                
                 QApplication.processEvents()
                 self.progressbar.setRange(0,dfMergeResultSfReset.index[-1])
 
