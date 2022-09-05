@@ -14,6 +14,7 @@ from PyQt5.QtGui import QDoubleValidator, QStandardItemModel, QIcon, QStandardIt
 from PyQt5.QtWidgets import QMainWindow, QMessageBox, QProgressBar, QPlainTextEdit, QWidget, QGridLayout, QGroupBox, QLineEdit, QSizePolicy, QToolButton, QLabel, QFrame, QListView, QMenuBar, QStatusBar, QPushButton, QApplication, QCalendarWidget, QVBoxLayout, QFileDialog, QCheckBox
 from PyQt5.QtCore import pyqtSlot, pyqtSignal, QObject, QThread, QRect, QSize, QDate
 import pandas as pd
+from colorlog import ColoredFormatter
 
 class Worker(QObject):
     progressChanged = pyqtSignal(int)
@@ -95,7 +96,7 @@ class UISubWindow(QMainWindow):
 
     def setupUi(self):
         self.setObjectName('SubWindow')
-        self.resize(500, 400)
+        self.resize(600, 600)
         self.setStyleSheet('background-color: rgb(252, 252, 252);')
         self.centralwidget = QWidget(self)
         self.centralwidget.setObjectName('centralwidget')
@@ -405,6 +406,7 @@ class Ui_MainWindow(QMainWindow):
         self.setupUi()
         
     def setupUi(self):
+
         logger = logging.getLogger(__name__)
         rfh = RotatingFileHandler(filename='./Log.log', 
                                     mode='a',
@@ -418,7 +420,7 @@ class Ui_MainWindow(QMainWindow):
                             datefmt = '%m/%d/%Y %H:%M:%S',
                             handlers=[rfh])
         self.setObjectName('MainWindow')
-        self.resize(613, 800)
+        self.resize(800, 800)
         self.setStyleSheet('background-color: rgb(252, 252, 252);')
         self.centralwidget = QWidget(self)
         self.centralwidget.setObjectName('centralwidget')
@@ -1033,10 +1035,11 @@ class Ui_MainWindow(QMainWindow):
                         if str(dfMergeResultSfReset['특수사양'+str(x+1)][i]) != '' and str(dfMergeResultSfReset['특수사양'+str(x+1)][i]) != 'nan':
                             limitCopyCnt = capableCntDic[float(dfMergeResultSfReset['특수사양'+str(x+1)][i])]
                             if (math.ceil(limitCopyCnt) <= (integCntDic[float(dfMergeResultSfReset['특수사양'+str(x+1)][i])]/dfMergeResultSfReset['남은 워킹데이'][i])) and copyCntDic[float(dfMergeResultSfReset['특수사양'+str(x+1)][i])] > 0:
-                                logging.info('「%s」 사양이 「완성지정일: %s」 까지 현재 「일 가능대수: %i 대」로는 착공량 부족이 예상됩니다.', 
+                                logging.info('「%s」 사양이 「완성지정일: %s」 까지 현재 「일 가능대수: %i 대」로는 착공량 부족이 예상됩니다. 최소 필요 착공량은 %i 대 입니다.', 
                                                 dfCondition[dfCondition['No'] == float(dfMergeResultSfReset['특수사양'+str(x+1)][i])]['그룹명'].values[0], 
                                                 dfMergeResultSfReset['Planned Prod. Completion date'][i], 
-                                                int(dfCondition[dfCondition['No'] == float(dfMergeResultSfReset['특수사양'+str(x+1)][i])]['日(LINE)가능대수'].values[0]))     
+                                                int(dfCondition[dfCondition['No'] == float(dfMergeResultSfReset['특수사양'+str(x+1)][i])]['日(LINE)가능대수'].values[0]),
+                                                (integCntDic[float(dfMergeResultSfReset['특수사양'+str(x+1)][i])]/dfMergeResultSfReset['남은 워킹데이'][i]))    
                             limitCnt = capableCntDic[float(dfMergeResultSfReset['특수사양'+str(x+1)][i])] * float(dfMergeResultSfReset['착공비율(%)'][i])
                             if (math.ceil(limitCnt) <= (integCntDic[float(dfMergeResultSfReset['특수사양'+str(x+1)][i])]/dfMergeResultSfReset['남은 워킹데이'][i])) and preOrderDic[float(dfMergeResultSfReset['특수사양'+str(x+1)][i])] > 0:
                                 for j in dfMergeResultSfReset.index:
@@ -1046,15 +1049,15 @@ class Ui_MainWindow(QMainWindow):
                                             preOrderDic[float(dfMergeResultSfReset['특수사양'+str(x+1)][i])] -= dfMergeResultSfReset['착공수량'][j]
                                         else:                                            
                                             break
-
                     for y in range(0,maxNormalCommaCnt+1):
                         if str(dfMergeResultSfReset['일반사양'+str(y+1)][i]) != '' and str(dfMergeResultSfReset['일반사양'+str(y+1)][i]) != 'nan':
                             limitCopyCnt = capableCntDic[float(dfMergeResultSfReset['일반사양'+str(y+1)][i])]
                             if (math.ceil(limitCopyCnt) <= (integCntDic[float(dfMergeResultSfReset['일반사양'+str(y+1)][i])]/dfMergeResultSfReset['남은 워킹데이'][i])) and copyCntDic[float(dfMergeResultSfReset['일반사양'+str(y+1)][i])] > 0:
-                                logging.info('「%s」 사양이 「완성지정일: %s」 까지 현재 「일 가능대수: %i 대」로는 착공량 부족이 예상됩니다.', 
+                                logging.info('「%s」 사양이 「완성지정일: %s」 까지 현재 「일 가능대수: %i 대」로는 착공량 부족이 예상됩니다. 최소 필요 착공량은 %i 대 입니다.', 
                                                 dfCondition[dfCondition['No'] == float(dfMergeResultSfReset['일반사양'+str(y+1)][i])]['그룹명'].values[0], 
                                                 dfMergeResultSfReset['Planned Prod. Completion date'][i],
-                                                int(dfCondition[dfCondition['No'] == float(dfMergeResultSfReset['일반사양'+str(y+1)][i])]['日(LINE)가능대수'].values[0]))     
+                                                int(dfCondition[dfCondition['No'] == float(dfMergeResultSfReset['일반사양'+str(y+1)][i])]['日(LINE)가능대수'].values[0]),
+                                                (integCntDic[float(dfMergeResultSfReset['일반사양'+str(y+1)][i])]/dfMergeResultSfReset['남은 워킹데이'][i]))     
                             limitCnt = capableCntDic[float(dfMergeResultSfReset['일반사양'+str(y+1)][i])] * float(dfMergeResultSfReset['착공비율(%)'][i])
                             if (math.ceil(limitCnt) <= (integCntDic[float(dfMergeResultSfReset['일반사양'+str(y+1)][i])]/dfMergeResultSfReset['남은 워킹데이'][i])) and preOrderDic[float(dfMergeResultSfReset['일반사양'+str(y+1)][i])]  > 0:
                                 for j in dfMergeResultSfReset.index:
