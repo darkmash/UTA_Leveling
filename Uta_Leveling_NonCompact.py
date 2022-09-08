@@ -8,13 +8,14 @@ import math
 import time
 import numpy as np
 import openpyxl as xl
-from PyQt5 import QtCore, QtWidgets
+from PyQt5 import QtCore, QtWidgets, QtGui
 from PyQt5.QtCore import Qt, QCoreApplication
 from PyQt5.QtGui import QDoubleValidator, QStandardItemModel, QIcon, QStandardItem, QIntValidator, QFont
 from PyQt5.QtWidgets import QMainWindow, QMessageBox, QProgressBar, QPlainTextEdit, QWidget, QGridLayout, QGroupBox, QLineEdit, QSizePolicy, QToolButton, QLabel, QFrame, QListView, QMenuBar, QStatusBar, QPushButton, QApplication, QCalendarWidget, QVBoxLayout, QFileDialog, QCheckBox
 from PyQt5.QtCore import pyqtSlot, pyqtSignal, QObject, QThread, QRect, QSize, QDate
 import pandas as pd
 from colorlog import ColoredFormatter
+
 
 class Worker(QObject):
     progressChanged = pyqtSignal(int)
@@ -24,13 +25,48 @@ class Worker(QObject):
             self.progressChanged.emit(progressbar_value)
             time.sleep(0.1)
 
-class QTextEditLogger(logging.Handler):
-    def __init__(self, parent):
+# class QTextEditLogger(logging.Handler):
+#     def __init__(self, parent):
+#         super().__init__()
+#         self.widget = QPlainTextEdit(parent)
+#         self.widget.setGeometry(QRect(10, 260, 661, 161))
+#         self.widget.setReadOnly(True)
+#         self.widget.setPlainText('')
+#         self.widget.setStyleSheet('background-color: rgb(53, 53, 53);\ncolor: rgb(255, 255, 255);')
+#         self.widget.setObjectName('logBrowser')
+#         font = QFont()
+#         font.setFamily('Nanum Gothic')
+#         font.setBold(False)
+#         font.setPointSize(9)
+#         self.widget.setFont(font)
+
+#     def emit(self, record):
+#         msg = self.format(record)
+#         self.widget.appendPlainText(msg)
+class CustomFormatter(logging.Formatter):
+    FORMATS = {
+        logging.ERROR:   ('[%(asctime)s] %(levelname)s:%(message)s','white'),
+        logging.DEBUG:   ('[%(asctime)s] %(levelname)s:%(message)s','white'),
+        logging.INFO:    ('[%(asctime)s] %(levelname)s:%(message)s','white'),
+        logging.WARNING: ('[%(asctime)s] %(levelname)s:%(message)s', 'yellow')
+    }
+
+    def format( self, record ):
+        last_fmt = self._style._fmt
+        opt = CustomFormatter.FORMATS.get(record.levelno)
+        if opt:
+            fmt, color = opt
+            self._style._fmt = "<font color=\"{}\">{}</font>".format(QtGui.QColor(color).name(),fmt)
+        res = logging.Formatter.format( self, record )
+        self._style._fmt = last_fmt
+        return res
+
+class QPlainTextEditLogger(logging.Handler):
+    def __init__(self, parent=None):
         super().__init__()
         self.widget = QPlainTextEdit(parent)
+        self.widget.setReadOnly(True)    
         self.widget.setGeometry(QRect(10, 260, 661, 161))
-        self.widget.setReadOnly(True)
-        self.widget.setPlainText('')
         self.widget.setStyleSheet('background-color: rgb(53, 53, 53);\ncolor: rgb(255, 255, 255);')
         self.widget.setObjectName('logBrowser')
         font = QFont()
@@ -41,8 +77,10 @@ class QTextEditLogger(logging.Handler):
 
     def emit(self, record):
         msg = self.format(record)
-        self.widget.appendPlainText(msg)
-
+        self.widget.appendHtml(msg) 
+        # move scrollbar
+        scrollbar = self.widget.verticalScrollBar()
+        scrollbar.setValue(scrollbar.maximum())
 class CalendarWindow(QWidget):
     submitClicked = pyqtSignal(str)
 
@@ -559,11 +597,12 @@ class Ui_MainWindow(QMainWindow):
         self.gridLayout6.setObjectName('gridLayout6')
         self.gridLayout5 = QGridLayout()
         self.gridLayout5.setObjectName('gridLayout5')
-        self.logBrowser = QTextEditLogger(self.groupBox2)
-        self.logBrowser.setFormatter(
-                                    logging.Formatter('[%(asctime)s] %(levelname)s:%(message)s', 
-                                                        datefmt='%Y-%m-%d %H:%M:%S')
-                                    )
+        self.logBrowser = QPlainTextEditLogger(self.groupBox2)
+        # self.logBrowser.setFormatter(
+        #                             logging.Formatter('[%(asctime)s] %(levelname)s:%(message)s', 
+        #                                                 datefmt='%Y-%m-%d %H:%M:%S')
+        #                             )
+        self.logBrowser.setFormatter(CustomFormatter())
         logging.getLogger().addHandler(self.logBrowser)
         logging.getLogger().setLevel(logging.INFO)
         self.gridLayout5.addWidget(self.logBrowser.widget, 0, 0, 1, 1)
@@ -595,7 +634,7 @@ class Ui_MainWindow(QMainWindow):
 
     def retranslateUi(self, MainWindow):
         _translate = QCoreApplication.translate
-        MainWindow.setWindowTitle(_translate('MainWindow', 'UTA 착공량 평준화 프로그램 Rev0.04'))
+        MainWindow.setWindowTitle(_translate('MainWindow', 'UTA 착공량 평준화 프로그램 Rev0.06'))
         MainWindow.setWindowIcon(QIcon('.\\Logo\\logo.png'))
         self.label.setText(_translate('MainWindow', '생산대수 (최대 착공량):'))
         self.runBtn.setText(_translate('MainWindow', '실행'))
@@ -1015,6 +1054,7 @@ class Ui_MainWindow(QMainWindow):
                 dfMergeResultSfReset['선행착공대상'] = ''
                 integCntDic = {}
                 copyCntDic = capableCntDic.copy()
+                minContCntDic = {}
                 for i in dfMergeResultSfReset.index:
                     for key, value in capableCntDic.items():
                         for x in range(0,maxSpCommaCnt+1):
@@ -1031,17 +1071,31 @@ class Ui_MainWindow(QMainWindow):
                                         integCntDic[key] += dfMergeResultSfReset['미착공수량'][i]
                                     else:
                                         integCntDic[key] = dfMergeResultSfReset['미착공수량'][i]
+                    if dfMergeResultSfReset['남은 워킹데이'][i] == 0:
+                            workDay = 1
+                    else:
+                        workDay = dfMergeResultSfReset['남은 워킹데이'][i]
                     for x in range(0,maxSpCommaCnt+1):
                         if str(dfMergeResultSfReset['특수사양'+str(x+1)][i]) != '' and str(dfMergeResultSfReset['특수사양'+str(x+1)][i]) != 'nan':
                             limitCopyCnt = capableCntDic[float(dfMergeResultSfReset['특수사양'+str(x+1)][i])]
-                            if (math.ceil(limitCopyCnt) <= (integCntDic[float(dfMergeResultSfReset['특수사양'+str(x+1)][i])]/dfMergeResultSfReset['남은 워킹데이'][i])) and copyCntDic[float(dfMergeResultSfReset['특수사양'+str(x+1)][i])] > 0:
-                                logging.info('「%s」 사양이 「완성지정일: %s」 까지 현재 「일 가능대수: %i 대」로는 착공량 부족이 예상됩니다. 최소 필요 착공량은 %i 대 입니다.', 
-                                                dfCondition[dfCondition['No'] == float(dfMergeResultSfReset['특수사양'+str(x+1)][i])]['그룹명'].values[0], 
-                                                dfMergeResultSfReset['Planned Prod. Completion date'][i], 
-                                                int(dfCondition[dfCondition['No'] == float(dfMergeResultSfReset['특수사양'+str(x+1)][i])]['日(LINE)가능대수'].values[0]),
-                                                (integCntDic[float(dfMergeResultSfReset['특수사양'+str(x+1)][i])]/dfMergeResultSfReset['남은 워킹데이'][i]))    
+                            if (math.ceil(limitCopyCnt) <= (integCntDic[float(dfMergeResultSfReset['특수사양'+str(x+1)][i])]/workDay)) and copyCntDic[float(dfMergeResultSfReset['특수사양'+str(x+1)][i])] > 0:
+                                if len(minContCntDic) > 0:
+                                    if dfCondition[dfCondition['No'] == float(dfMergeResultSfReset['특수사양'+str(x+1)][i])]['그룹명'].values[0] in minContCntDic:
+                                        if minContCntDic[dfCondition[dfCondition['No'] == float(dfMergeResultSfReset['특수사양'+str(x+1)][i])]['그룹명'].values[0]] < (integCntDic[float(dfMergeResultSfReset['특수사양'+str(x+1)][i])]/workDay):
+                                            minContCntDic[dfCondition[dfCondition['No'] == float(dfMergeResultSfReset['특수사양'+str(x+1)][i])]['그룹명'].values[0]] = (integCntDic[float(dfMergeResultSfReset['특수사양'+str(x+1)][i])]/workDay)
+                                            minContCntDic[dfCondition[dfCondition['No'] == float(dfMergeResultSfReset['일반사양'+str(y+1)][i])]['그룹명'].values[0]][1] = int(dfCondition[dfCondition['No'] == float(dfMergeResultSfReset['특수사양'+str(x+1)][i])]['日(LINE)가능대수'].values[0])
+                                            minContCntDic[dfCondition[dfCondition['No'] == float(dfMergeResultSfReset['특수사양'+str(x+1)][i])]['그룹명'].values[0]][2] = dfMergeResultSfReset['Planned Prod. Completion date'][i]
+                                else:
+                                    minContCntDic[dfCondition[dfCondition['No'] == float(dfMergeResultSfReset['특수사양'+str(x+1)][i])]['그룹명'].values[0]] = [(integCntDic[float(dfMergeResultSfReset['특수사양'+str(x+1)][i])]/workDay),
+                                                                                                                                                                int(dfCondition[dfCondition['No'] == float(dfMergeResultSfReset['특수사양'+str(x+1)][i])]['日(LINE)가능대수'].values[0]),
+                                                                                                                                                                dfMergeResultSfReset['Planned Prod. Completion date'][i]]
+                                # logging.warning('「%s」 사양이 「완성지정일: %s」 까지 현재 「일 가능대수: %i 대」로는 착공량 부족이 예상됩니다. 최소 필요 착공량은 「%i 대」 입니다.', 
+                                #                 dfCondition[dfCondition['No'] == float(dfMergeResultSfReset['특수사양'+str(x+1)][i])]['그룹명'].values[0], 
+                                #                 dfMergeResultSfReset['Planned Prod. Completion date'][i], 
+                                #                 int(dfCondition[dfCondition['No'] == float(dfMergeResultSfReset['특수사양'+str(x+1)][i])]['日(LINE)가능대수'].values[0]),
+                                #                 (integCntDic[float(dfMergeResultSfReset['특수사양'+str(x+1)][i])]/workDay))    
                             limitCnt = capableCntDic[float(dfMergeResultSfReset['특수사양'+str(x+1)][i])] * float(dfMergeResultSfReset['착공비율(%)'][i])
-                            if (math.ceil(limitCnt) <= (integCntDic[float(dfMergeResultSfReset['특수사양'+str(x+1)][i])]/dfMergeResultSfReset['남은 워킹데이'][i])) and preOrderDic[float(dfMergeResultSfReset['특수사양'+str(x+1)][i])] > 0:
+                            if (math.ceil(limitCnt) <= (integCntDic[float(dfMergeResultSfReset['특수사양'+str(x+1)][i])]/workDay)) and preOrderDic[float(dfMergeResultSfReset['특수사양'+str(x+1)][i])] > 0:
                                 for j in dfMergeResultSfReset.index:
                                     if dfMergeResultSfReset['특수사양'+str(x+1)][i] in dfMergeResultSfReset['특수사양'][j]:
                                         if preOrderDic[float(dfMergeResultSfReset['특수사양'+str(x+1)][i])] > 0:
@@ -1052,14 +1106,24 @@ class Ui_MainWindow(QMainWindow):
                     for y in range(0,maxNormalCommaCnt+1):
                         if str(dfMergeResultSfReset['일반사양'+str(y+1)][i]) != '' and str(dfMergeResultSfReset['일반사양'+str(y+1)][i]) != 'nan':
                             limitCopyCnt = capableCntDic[float(dfMergeResultSfReset['일반사양'+str(y+1)][i])]
-                            if (math.ceil(limitCopyCnt) <= (integCntDic[float(dfMergeResultSfReset['일반사양'+str(y+1)][i])]/dfMergeResultSfReset['남은 워킹데이'][i])) and copyCntDic[float(dfMergeResultSfReset['일반사양'+str(y+1)][i])] > 0:
-                                logging.info('「%s」 사양이 「완성지정일: %s」 까지 현재 「일 가능대수: %i 대」로는 착공량 부족이 예상됩니다. 최소 필요 착공량은 %i 대 입니다.', 
-                                                dfCondition[dfCondition['No'] == float(dfMergeResultSfReset['일반사양'+str(y+1)][i])]['그룹명'].values[0], 
-                                                dfMergeResultSfReset['Planned Prod. Completion date'][i],
-                                                int(dfCondition[dfCondition['No'] == float(dfMergeResultSfReset['일반사양'+str(y+1)][i])]['日(LINE)가능대수'].values[0]),
-                                                (integCntDic[float(dfMergeResultSfReset['일반사양'+str(y+1)][i])]/dfMergeResultSfReset['남은 워킹데이'][i]))     
+                            if (math.ceil(limitCopyCnt) <= (integCntDic[float(dfMergeResultSfReset['일반사양'+str(y+1)][i])]/workDay)) and copyCntDic[float(dfMergeResultSfReset['일반사양'+str(y+1)][i])] > 0:
+                                if len(minContCntDic) > 0:
+                                    if dfCondition[dfCondition['No'] == float(dfMergeResultSfReset['일반사양'+str(y+1)][i])]['그룹명'].values[0] in minContCntDic:
+                                        if minContCntDic[dfCondition[dfCondition['No'] == float(dfMergeResultSfReset['일반사양'+str(y+1)][i])]['그룹명'].values[0]][0] < (integCntDic[float(dfMergeResultSfReset['일반사양'+str(y+1)][i])]/workDay):
+                                            minContCntDic[dfCondition[dfCondition['No'] == float(dfMergeResultSfReset['일반사양'+str(y+1)][i])]['그룹명'].values[0]][0] = (integCntDic[float(dfMergeResultSfReset['일반사양'+str(y+1)][i])]/workDay)
+                                            minContCntDic[dfCondition[dfCondition['No'] == float(dfMergeResultSfReset['일반사양'+str(y+1)][i])]['그룹명'].values[0]][1] = int(dfCondition[dfCondition['No'] == float(dfMergeResultSfReset['일반사양'+str(y+1)][i])]['日(LINE)가능대수'].values[0])
+                                            minContCntDic[dfCondition[dfCondition['No'] == float(dfMergeResultSfReset['일반사양'+str(y+1)][i])]['그룹명'].values[0]][2] = dfMergeResultSfReset['Planned Prod. Completion date'][i]
+                                else:
+                                    minContCntDic[dfCondition[dfCondition['No'] == float(dfMergeResultSfReset['일반사양'+str(y+1)][i])]['그룹명'].values[0]] = [(integCntDic[float(dfMergeResultSfReset['일반사양'+str(y+1)][i])]/workDay),
+                                                                                                                                                                int(dfCondition[dfCondition['No'] == float(dfMergeResultSfReset['일반사양'+str(y+1)][i])]['日(LINE)가능대수'].values[0]),
+                                                                                                                                                                dfMergeResultSfReset['Planned Prod. Completion date'][i]]
+                                # logging.warning('「%s」 사양이 「완성지정일: %s」 까지 현재 「일 가능대수: %i 대」로는 착공량 부족이 예상됩니다. 최소 필요 착공량은 「%i 대」 입니다.', 
+                                #                 dfCondition[dfCondition['No'] == float(dfMergeResultSfReset['일반사양'+str(y+1)][i])]['그룹명'].values[0], 
+                                #                 dfMergeResultSfReset['Planned Prod. Completion date'][i],
+                                #                 int(dfCondition[dfCondition['No'] == float(dfMergeResultSfReset['일반사양'+str(y+1)][i])]['日(LINE)가능대수'].values[0]),
+                                #                 (integCntDic[float(dfMergeResultSfReset['일반사양'+str(y+1)][i])]/workDay))     
                             limitCnt = capableCntDic[float(dfMergeResultSfReset['일반사양'+str(y+1)][i])] * float(dfMergeResultSfReset['착공비율(%)'][i])
-                            if (math.ceil(limitCnt) <= (integCntDic[float(dfMergeResultSfReset['일반사양'+str(y+1)][i])]/dfMergeResultSfReset['남은 워킹데이'][i])) and preOrderDic[float(dfMergeResultSfReset['일반사양'+str(y+1)][i])]  > 0:
+                            if (math.ceil(limitCnt) <= (integCntDic[float(dfMergeResultSfReset['일반사양'+str(y+1)][i])]/workDay)) and preOrderDic[float(dfMergeResultSfReset['일반사양'+str(y+1)][i])]  > 0:
                                 for j in dfMergeResultSfReset.index:
                                     # print(dfMergeResultSfReset['일반사양'+str(y+1)][i])
                                     # print(dfMergeResultSfReset['일반사양'][j])
@@ -1069,6 +1133,13 @@ class Ui_MainWindow(QMainWindow):
                                             preOrderDic[float(dfMergeResultSfReset['일반사양'+str(y+1)][i])] -= dfMergeResultSfReset['착공수량'][j]
                                         else:
                                             break
+                if len(minContCntDic)>0:
+                    for key, value in minContCntDic.items():
+                        logging.warning('「%s」 사양이 「완성지정일: %s」 까지 현재 「일 가능대수: %i 대」로는 착공량 부족이 예상됩니다. 최소 필요 착공량은 「%i 대」 입니다.', 
+                                                key, 
+                                                str(value[2]),
+                                                value[1],
+                                                math.ceil(value[0]))     
 
                 dfMergeResultSfReset = dfMergeResultSfReset.sort_values(by=['긴급오더', 
                                                                             'MAX 착공 필요',
