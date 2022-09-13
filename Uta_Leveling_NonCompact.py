@@ -624,7 +624,7 @@ class Ui_MainWindow(QMainWindow):
         self.runBtn.clicked.connect(self.startLeveling)
         self.cbLimit.stateChanged.connect(self.changeCbLimit)
         #디버그용 플래그
-        self.isDebug = True
+        self.isDebug = False
         if self.isDebug:
             self.debugDate = QLineEdit(self.groupBox)
             self.debugDate.setObjectName('debugDate')
@@ -1364,18 +1364,20 @@ class Ui_MainWindow(QMainWindow):
                                 cycleList[j][normalSpec] -= 1
                                 break
                 dfMergeOrderResult = dfMergeOrderResult.sort_values(by=['긴급오더', '사이클그룹'], ascending=[False, True])
-                dfMergeOrderResult = dfMergeOrderResult.sort_values(by=['사이클그룹', 
-                                                                            '특수사양',
-                                                                            'MS-CODE',
-                                                                            'Linkage Number',
-                                                                            'Planned Prod. Completion date',
-                                                                            '일반사양'], 
-                                                                            ascending=[True,
-                                                                                        True,
-                                                                                        True,
-                                                                                        True,
-                                                                                        True,
-                                                                                        True])
+                dfMergeOrderResult = dfMergeOrderResult.sort_values(by=['긴급오더',
+                                                                        '사이클그룹', 
+                                                                        '특수사양',
+                                                                        'MS-CODE',
+                                                                        'Linkage Number',
+                                                                        'Planned Prod. Completion date',
+                                                                        '일반사양'], 
+                                                                        ascending=[False,
+                                                                                    True,
+                                                                                    True,
+                                                                                    True,
+                                                                                    True,
+                                                                                    True,
+                                                                                    True])
                 dfMergeOrderResult = dfMergeOrderResult.reset_index(drop=True)
                 dfMergeOrderResult['No (*)'] = (dfMergeOrderResult.index.astype(int) + 1) * 10
                 dfMergeOrderResult['Scheduled Start Date (*)'] = self.labelDate.text()
