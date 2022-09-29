@@ -16,7 +16,6 @@ from PyQt5.QtCore import pyqtSlot, pyqtSignal, QObject, QThread, QRect, QSize, Q
 import pandas as pd
 from colorlog import ColoredFormatter
 
-
 class Worker(QObject):
     progressChanged = pyqtSignal(int)
     def work(self):
@@ -634,16 +633,16 @@ class Ui_MainWindow(QMainWindow):
 
     def retranslateUi(self, MainWindow):
         _translate = QCoreApplication.translate
-        MainWindow.setWindowTitle(_translate('MainWindow', 'UTA 착공량 평준화 프로그램 Rev0.06'))
+        MainWindow.setWindowTitle(_translate('MainWindow', 'UTA 착공량 평준화 프로그램 Rev1.01'))
         MainWindow.setWindowIcon(QIcon('.\\Logo\\logo.png'))
         self.label.setText(_translate('MainWindow', '생산대수 (최대 착공량):'))
         self.runBtn.setText(_translate('MainWindow', '실행'))
         self.label2.setText(_translate('MainWindow', '긴급오더 입력 :'))
         self.label3.setText(_translate('MainWindow', '홀딩오더 입력 :'))
         self.label4.setText(_translate('MainWindow', 'Linkage No List'))
-        self.label5.setText(_translate('MainWindow', 'mscode List'))
+        self.label5.setText(_translate('MainWindow', 'MSCode List'))
         self.label6.setText(_translate('MainWindow', 'Linkage No List'))
-        self.label7.setText(_translate('MainWindow', 'mscode List'))
+        self.label7.setText(_translate('MainWindow', 'MSCode List'))
         self.label8.setText(_translate('MainWndow', '착공지정일 입력 :'))
         self.labelDate.setText(_translate('MainWndow', '미선택'))
         self.dateBtn.setText(_translate('MainWindow', ' 착공지정일 선택 '))
@@ -748,7 +747,6 @@ class Ui_MainWindow(QMainWindow):
                 if dtToday < dt and dt <= dtComp:
                     if df['WorkingDay'][i] == 1:
                         workDay += 1
-            
             return workDay
                 
         self.runBtn.setEnabled(False)
@@ -784,7 +782,7 @@ class Ui_MainWindow(QMainWindow):
                 dfHoldLinkage['홀딩오더'] = '대상'
                 dfHoldmscode['홀딩오더'] = '대상'
                 #Leveling Data 불러오기
-                dfLeveling = pd.read_excel(listMasterFile[1])
+                dfLeveling = pd.read_excel(listMasterFile[1], converters={'Component Number':str})
                 if self.isDebug:
                     dfLeveling.to_excel('.\\debug\\flow1.xlsx') 
                 #미착공 대상 식별 후, 그 외는 삭제
@@ -793,6 +791,10 @@ class Ui_MainWindow(QMainWindow):
                 dfLevelingUncorSeq = dfLeveling[dfLeveling['Sequence No']=='Uncor']
                 dfLevelingResult = pd.concat([dfLevelingDropSEQ, dfLevelingUndepSeq, dfLevelingUncorSeq])
                 dfLevelingResult = dfLevelingResult.reset_index(level=None, drop=False, inplace=False)
+                for i in dfLevelingResult.index:
+                    if len(str(dfLevelingResult['Component Number'][i])) != 4:
+                        logging.warning(f'「Planned Order : {str(dfLevelingResult["Planned Order"][i]).zfill(10)}」의 Component Number를 확인해주세요. (자릿수 이상)')
+                    
                 dfLevelingResult['미착공수량'] = dfLevelingResult.groupby('Linkage Number')['Linkage Number'].transform('size')
                 dfUtaOrder = pd.read_excel(listMasterFile[0])
                 if self.isDebug:
@@ -847,7 +849,8 @@ class Ui_MainWindow(QMainWindow):
                 #완성지정일과 출하지정일이 급한 순으로 나열
                 dfMergeResultS = dfMergeResult.sort_values(by=['Planned Prod. Completion date', 
                                                                     'Planned Shipping date'], 
-                                                                    ascending=[True, True])
+                                                                    ascending=[True, 
+                                                                                True])
                 #정렬에 따른 인덱스 재설정
                 dfMergeResultS = dfMergeResultS.reset_index(level=None, 
                                                             drop=False, 
@@ -980,9 +983,9 @@ class Ui_MainWindow(QMainWindow):
                                 if dfMergeResultS['공수배율'][i] == "" or dfMergeResultS['공수배율'][i] < dfCondition['공수 배율'][j]:
                                     dfMergeResultS['공수배율'][i] = dfCondition['공수 배율'][j]
                                     dfMergeResultS['착공비율(%)'][i] = dfCondition['착공비율(%)'][j]
-                                    if str(dfCondition['MAX 착공 필요'][j]) != 'nan' and str(dfCondition['MAX 착공 필요'][j]) != '' and str(dfCondition['MAX 착공 필요'][j]) != '-':
-                                        dfMergeResultS['MAX 착공 필요'][i] = '대상'
-                                        dfMergeResultS['착공비율(%)'][i] = 1.0
+                                if str(dfCondition['MAX 착공 필요'][j]) != 'nan' and str(dfCondition['MAX 착공 필요'][j]) != '' and str(dfCondition['MAX 착공 필요'][j]) != '-':
+                                    dfMergeResultS['MAX 착공 필요'][i] = '대상'
+                                    dfMergeResultS['착공비율(%)'][i] = 1.0
                 #조건에 맞지않는 사양은 공수배율 1로 설정, 필요공수도 배율에 맞게 미착공수량*1로 설정
                 dfMergeResultS.loc[dfMergeResultS['공수배율'] == 0, '공수배율'] = 1
                 #디버그용 파일 출력
@@ -1022,15 +1025,16 @@ class Ui_MainWindow(QMainWindow):
                 if self.isDebug:
                     dfMergeResultS.to_excel('.\\debug\\flow9.xlsx')    
                 #완성지정일 -> 출하지정일 -> 특수사양 -> 일반사양 순으로 착공지정우선순위 설정을 위해 정렬
-                dfMergeResultSf = dfMergeResultS.sort_values(by=['긴급오더',
-                                                                'MAX 착공 필요',
+                dfMergeResultSf = dfMergeResultS.sort_values(by=[
                                                                 'Planned Prod. Completion date', 
+                                                                '긴급오더',
+                                                                'MAX 착공 필요',
                                                                 'Planned Shipping date', 
                                                                 '특수사양', 
                                                                 '일반사양'], 
-                                                                ascending=[False, 
+                                                                ascending=[True, 
                                                                             False,
-                                                                            True, 
+                                                                            False, 
                                                                             True, 
                                                                             False, 
                                                                             False])
@@ -1081,9 +1085,9 @@ class Ui_MainWindow(QMainWindow):
                             if (math.ceil(limitCopyCnt) <= (integCntDic[float(dfMergeResultSfReset['특수사양'+str(x+1)][i])]/workDay)) and copyCntDic[float(dfMergeResultSfReset['특수사양'+str(x+1)][i])] > 0:
                                 if len(minContCntDic) > 0:
                                     if dfCondition[dfCondition['No'] == float(dfMergeResultSfReset['특수사양'+str(x+1)][i])]['그룹명'].values[0] in minContCntDic:
-                                        if minContCntDic[dfCondition[dfCondition['No'] == float(dfMergeResultSfReset['특수사양'+str(x+1)][i])]['그룹명'].values[0]] < (integCntDic[float(dfMergeResultSfReset['특수사양'+str(x+1)][i])]/workDay):
-                                            minContCntDic[dfCondition[dfCondition['No'] == float(dfMergeResultSfReset['특수사양'+str(x+1)][i])]['그룹명'].values[0]] = (integCntDic[float(dfMergeResultSfReset['특수사양'+str(x+1)][i])]/workDay)
-                                            minContCntDic[dfCondition[dfCondition['No'] == float(dfMergeResultSfReset['일반사양'+str(y+1)][i])]['그룹명'].values[0]][1] = int(dfCondition[dfCondition['No'] == float(dfMergeResultSfReset['특수사양'+str(x+1)][i])]['日(LINE)가능대수'].values[0])
+                                        if minContCntDic[dfCondition[dfCondition['No'] == float(dfMergeResultSfReset['특수사양'+str(x+1)][i])]['그룹명'].values[0]][0] < (integCntDic[float(dfMergeResultSfReset['특수사양'+str(x+1)][i])]/workDay):
+                                            minContCntDic[dfCondition[dfCondition['No'] == float(dfMergeResultSfReset['특수사양'+str(x+1)][i])]['그룹명'].values[0]][0] = (integCntDic[float(dfMergeResultSfReset['특수사양'+str(x+1)][i])]/workDay)
+                                            minContCntDic[dfCondition[dfCondition['No'] == float(dfMergeResultSfReset['특수사양'+str(x+1)][i])]['그룹명'].values[0]][1] = int(dfCondition[dfCondition['No'] == float(dfMergeResultSfReset['특수사양'+str(x+1)][i])]['日(LINE)가능대수'].values[0])
                                             minContCntDic[dfCondition[dfCondition['No'] == float(dfMergeResultSfReset['특수사양'+str(x+1)][i])]['그룹명'].values[0]][2] = dfMergeResultSfReset['Planned Prod. Completion date'][i]
                                 else:
                                     minContCntDic[dfCondition[dfCondition['No'] == float(dfMergeResultSfReset['특수사양'+str(x+1)][i])]['그룹명'].values[0]] = [(integCntDic[float(dfMergeResultSfReset['특수사양'+str(x+1)][i])]/workDay),
@@ -1140,16 +1144,20 @@ class Ui_MainWindow(QMainWindow):
                                                 str(value[2]),
                                                 value[1],
                                                 math.ceil(value[0]))     
+                if self.isDebug:
+                    dfMergeResultSfReset.to_excel('.\\debug\\flow10-2.xlsx')
 
                 dfMergeResultSfReset = dfMergeResultSfReset.sort_values(by=['긴급오더', 
                                                                             'MAX 착공 필요',
                                                                             '선행착공대상',
                                                                             'Planned Prod. Completion date',
+                                                                            'Planned Shipping date',
                                                                             '특수사양',
                                                                             '일반사양'], 
                                                                             ascending=[False,
                                                                                         False,
                                                                                         False,
+                                                                                        True,
                                                                                         True,
                                                                                         True,
                                                                                         True])
@@ -1159,7 +1167,7 @@ class Ui_MainWindow(QMainWindow):
                 dfMergeResultSfReset.drop('index', axis=1, inplace=True)
 
                 if self.isDebug:
-                    dfMergeResultSfReset.to_excel('.\\debug\\flow10-2.xlsx')
+                    dfMergeResultSfReset.to_excel('.\\debug\\flow10-3.xlsx')
                 
                 QApplication.processEvents()
                 self.progressbar.setRange(0,dfMergeResultSfReset.index[-1])
