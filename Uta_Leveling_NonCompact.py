@@ -623,7 +623,7 @@ class Ui_MainWindow(QMainWindow):
         self.runBtn.clicked.connect(self.startLeveling)
         self.cbLimit.stateChanged.connect(self.changeCbLimit)
         #디버그용 플래그
-        self.isDebug = False
+        self.isDebug = True
         if self.isDebug:
             self.debugDate = QLineEdit(self.groupBox)
             self.debugDate.setObjectName('debugDate')
@@ -1049,12 +1049,6 @@ class Ui_MainWindow(QMainWindow):
                     dfMergeResultSfReset.to_excel('.\\debug\\flow10.xlsx')
                 dfMergeResultSfReset['착공수량'] = dfMergeResultSfReset['미착공수량']
                 
-                # for x in range(0,maxSpCommaCnt+1):
-                #     dfMergeResultSfReset['특수'+str(x+1) + '누적착공량'] = 0
-                # for y in range(0,maxNormalCommaCnt+1):
-                #     dfMergeResultSfReset['일반'+str(y+1) + '누적착공량'] = 0
-                # dfMergeResultSfReset['누적착공수량'] = 0
-                # dfMergeResultSfReset['누적착공수량/남은 워킹데이'] = 0
                 dfMergeResultSfReset['선행착공대상'] = ''
                 integCntDic = {}
                 copyCntDic = capableCntDic.copy()
@@ -1176,6 +1170,8 @@ class Ui_MainWindow(QMainWindow):
                 #착공량 분배 로직
                 for i in dfMergeResultSfReset.index:
                     self.progressbar.setValue(i/2)
+                    if i == 157:
+                        print()
                     if constructTempCnt > 0:
                         if dfMergeResultSfReset['홀딩오더'][i] != '대상':
                             if dfMergeResultSfReset['긴급오더'][i] != '대상':
@@ -1187,45 +1183,45 @@ class Ui_MainWindow(QMainWindow):
                                     if limitCnt <= tempMinCnt:
                                         tempMinCnt = limitCnt
                                 #대상의 미착공수량을 확인
-                                if float(dfMergeResultSfReset['미착공수량'][i]) <= tempMinCnt:
-                                    tempMinCnt = float(dfMergeResultSfReset['미착공수량'][i])
+                                if float(dfMergeResultSfReset['미착공수량'][i]) * float(dfMergeResultSfReset['공수배율'][i]) <= tempMinCnt:
+                                    tempMinCnt = float(dfMergeResultSfReset['미착공수량'][i]) * float(dfMergeResultSfReset['공수배율'][i])
                                 #특수사양의 남은 일 가능대수 확인
                                 for x in range(0,maxSpCommaCnt+1):
                                     if str(dfMergeResultSfReset['특수사양'+str(x+1)][i]) != '' and str(dfMergeResultSfReset['특수사양'+str(x+1)][i]) != 'nan':
                                         normalFlag = False
-                                        if capableCntDic[float(dfMergeResultSfReset['특수사양'+str(x+1)][i])] <= tempMinCnt:
-                                            tempMinCnt = capableCntDic[float(dfMergeResultSfReset['특수사양'+str(x+1)][i])]
+                                        if capableCntDic[float(dfMergeResultSfReset['특수사양'+str(x+1)][i])] * float(dfMergeResultSfReset['공수배율'][i]) <= tempMinCnt:
+                                            tempMinCnt = capableCntDic[float(dfMergeResultSfReset['특수사양'+str(x+1)][i])] * float(dfMergeResultSfReset['공수배율'][i])
                                 #일반사양의 남은 일 가능대수 확인
                                 for y in range(0,maxNormalCommaCnt+1):
                                     if str(dfMergeResultSfReset['일반사양'+str(y+1)][i]) != '' and str(dfMergeResultSfReset['일반사양'+str(y+1)][i]) != 'nan':
                                         normalFlag = False
-                                        if capableCntDic[float(dfMergeResultSfReset['일반사양'+str(y+1)][i])] <= tempMinCnt:
-                                            tempMinCnt = capableCntDic[float(dfMergeResultSfReset['일반사양'+str(y+1)][i])]
+                                        if capableCntDic[float(dfMergeResultSfReset['일반사양'+str(y+1)][i])] * float(dfMergeResultSfReset['공수배율'][i])<= tempMinCnt:
+                                            tempMinCnt = capableCntDic[float(dfMergeResultSfReset['일반사양'+str(y+1)][i])] * float(dfMergeResultSfReset['공수배율'][i])
                                 #착공 여유분이 있을 때의 로직
                                 if tempMinCnt > 0:
-                                    dfMergeResultSfReset['착공수량'][i] = math.ceil(tempMinCnt)
+                                    dfMergeResultSfReset['착공수량'][i] = math.ceil(tempMinCnt / float(dfMergeResultSfReset['공수배율'][i]))
                                     #특수 or 일반 사양일 경우
                                     if not normalFlag:
                                         for x in range(0,maxSpCommaCnt+1):
                                             if str(dfMergeResultSfReset['특수사양'+str(x+1)][i]) != '' and str(dfMergeResultSfReset['특수사양'+str(x+1)][i]) != 'nan':
-                                                if capableCntDic[float(dfMergeResultSfReset['특수사양'+str(x+1)][i])] - tempMinCnt >= 0:
-                                                    capableCntDic[float(dfMergeResultSfReset['특수사양'+str(x+1)][i])] -= tempMinCnt
+                                                if capableCntDic[float(dfMergeResultSfReset['특수사양'+str(x+1)][i])] - dfMergeResultSfReset['착공수량'][i] >= 0:
+                                                    capableCntDic[float(dfMergeResultSfReset['특수사양'+str(x+1)][i])] -= dfMergeResultSfReset['착공수량'][i]
                                                 else:
                                                     capableCntDic[float(dfMergeResultSfReset['특수사양'+str(x+1)][i])] = 0
                                         for y in range(0,maxNormalCommaCnt+1):
                                             if str(dfMergeResultSfReset['일반사양'+str(y+1)][i]) != '' and str(dfMergeResultSfReset['일반사양'+str(y+1)][i]) != 'nan':
-                                                if capableCntDic[float(dfMergeResultSfReset['일반사양'+str(y+1)][i])] - tempMinCnt >= 0:
-                                                    capableCntDic[float(dfMergeResultSfReset['일반사양'+str(y+1)][i])] -= tempMinCnt
+                                                if capableCntDic[float(dfMergeResultSfReset['일반사양'+str(y+1)][i])] - dfMergeResultSfReset['착공수량'][i] >= 0:
+                                                    capableCntDic[float(dfMergeResultSfReset['일반사양'+str(y+1)][i])] -= dfMergeResultSfReset['착공수량'][i]
                                                 else:
                                                     capableCntDic[float(dfMergeResultSfReset['일반사양'+str(y+1)][i])] = 0
                                     #UT32A, UT52A, UM33A 대상일 경우는 제한Cnt에서도 제외
                                     if (str(dfMergeResultSfReset['UT32A, UT52A, UM33A구분여부'][i]) != '' and str(dfMergeResultSfReset['UT32A, UT52A, UM33A구분여부'][i]) != 'nan'):
                                         if limitCnt > 0:
-                                            limitCnt -= tempMinCnt * float(dfMergeResultSfReset['공수배율'][i])
-                                            constructTempCnt -= tempMinCnt * float(dfMergeResultSfReset['공수배율'][i])
+                                            limitCnt -= dfMergeResultSfReset['착공수량'][i] * float(dfMergeResultSfReset['공수배율'][i])
+                                            constructTempCnt -= dfMergeResultSfReset['착공수량'][i] * float(dfMergeResultSfReset['공수배율'][i])
                                             dfCopy = dfCopy.append(dfMergeResultSfReset.iloc[i])
                                     else:
-                                        constructTempCnt -= tempMinCnt * float(dfMergeResultSfReset['공수배율'][i])
+                                        constructTempCnt -= dfMergeResultSfReset['착공수량'][i] * float(dfMergeResultSfReset['공수배율'][i])
                                         dfCopy = dfCopy.append(dfMergeResultSfReset.iloc[i])
                             #긴급 오더 일 경우
                             else:
@@ -1400,29 +1396,29 @@ class Ui_MainWindow(QMainWindow):
                 if self.isDebug:
                     dfMergeOrderResult.to_excel('.\\debug\\flow15.xlsx')
                 dfMergeOrderResult = dfMergeOrderResult[['No (*)', 
-                                                                'Sequence No', 
-                                                                'Production Order', 
-                                                                'Planned Order', 
-                                                                'Manual', 
-                                                                'Scheduled Start Date (*)', 
-                                                                'Scheduled End Date', 
-                                                                'Specified Start Date', 
-                                                                'Specified End Date', 
-                                                                'Demand destination country', 
-                                                                'MS-CODE', 
-                                                                'Allocate', 
-                                                                'Spec Freeze Date', 
-                                                                'Linkage Number', 
-                                                                'Order Number', 
-                                                                'Order Item', 
-                                                                'Combination flag', 
-                                                                'Project Definition', 
-                                                                'Error message', 
-                                                                'Leveling Group', 
-                                                                'Leveling Class', 
-                                                                'Planning Plant', 
-                                                                'Component Number', 
-                                                                'Serial Number']]
+                                                        'Sequence No', 
+                                                        'Production Order', 
+                                                        'Planned Order', 
+                                                        'Manual', 
+                                                        'Scheduled Start Date (*)', 
+                                                        'Scheduled End Date', 
+                                                        'Specified Start Date', 
+                                                        'Specified End Date', 
+                                                        'Demand destination country', 
+                                                        'MS-CODE', 
+                                                        'Allocate', 
+                                                        'Spec Freeze Date', 
+                                                        'Linkage Number', 
+                                                        'Order Number', 
+                                                        'Order Item', 
+                                                        'Combination flag', 
+                                                        'Project Definition', 
+                                                        'Error message', 
+                                                        'Leveling Group', 
+                                                        'Leveling Class', 
+                                                        'Planning Plant', 
+                                                        'Component Number', 
+                                                        'Serial Number']]
                 #디버그용 파일 출력
                 if self.isDebug:
                     dfMergeOrderResult.to_excel('.\\debug\\flow16.xlsx')
