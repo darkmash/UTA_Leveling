@@ -583,7 +583,7 @@ class Ui_MainWindow(QMainWindow):
 
     def retranslateUi(self, MainWindow):
         _translate = QCoreApplication.translate
-        MainWindow.setWindowTitle(_translate('MainWindow', 'UTA 착공량 평준화 프로그램 Rev1.02'))
+        MainWindow.setWindowTitle(_translate('MainWindow', 'UTA 착공량 평준화 프로그램 Rev1.03'))
         MainWindow.setWindowIcon(QIcon('.\\Logo\\logo.png'))
         self.label.setText(_translate('MainWindow', '생산대수 (최대 착공량):'))
         self.runBtn.setText(_translate('MainWindow', '실행'))
@@ -835,6 +835,7 @@ class Ui_MainWindow(QMainWindow):
                         capableCntDic[float(dfCondition['No'][i])] = dfCondition['日(LINE)가능대수'][i]
                         preOrderDic[float(dfCondition['No'][i])] = math.ceil(float(dfCondition['日(LINE)가능대수'][i]) * float(dfCondition['착공비율(%)'][i]))
                 for i in dfMergeResultS.index:
+                    print(dfMergeResultS['MS Code'][i])
                     # 불요 모델 4850U1-□, UTAP□□□ 삭제
                     if str(dfMergeResultS['MS Code'][i]).find('4850U1') > -1 or str(dfMergeResultS['MS Code'][i]).find('UTAP') > -1:
                         dfMergeResultS.drop(i, inplace=True)
@@ -856,13 +857,17 @@ class Ui_MainWindow(QMainWindow):
                             dfMergeResultS['긴급오더'][i] = '대상'
                     # 기종분류 기준표 불러오기
                     for j in dfCondition.index:
+                        if i == 58 or i == 275 or i == 670:
+                            print()
                         optionCode = ""
                         mscode = ''
                         if str(dfCondition['Model'][j]).strip() != 'nan' and str(dfCondition['Model'][j]).strip() != '':
                             mscode = str(dfCondition['Model'][j]).strip()
                         else:
-                            mscode = '.....'
-                        if mscode not in ('LL50A', 'MDUT'):
+                            splitList = str(dfMergeResultS['MS Code'][i]).split('-')
+                            for k in range(0, len(splitList[0])):
+                                mscode += '.'
+                        if 'LL50A' not in dfMergeResultS['MS Code'][i] and 'MDUT' not in dfMergeResultS['MS Code'][i]:
                             for k in range(1, 8):
                                 if str(dfCondition['Suffix Code' + str(k)][j]).strip() != 'nan' and str(dfCondition['Suffix Code' + str(k)][j]).strip() != '':
                                     if 'UM33A' not in str(dfMergeResultS['MS Code'][i]).strip():
@@ -886,11 +891,10 @@ class Ui_MainWindow(QMainWindow):
                                             mscode = mscode + '-' + '.'
                                         elif k < 6:
                                             mscode = mscode + '.'
-                            if str(dfCondition['Option Code'][j]).strip() != 'nan' and str(dfCondition['Option Code'][j]).strip() != '':
-
-                                optionCode = str(dfCondition['Option Code'][j]).strip()
-                            else:
-                                optionCode = ""
+                        if str(dfCondition['Option Code'][j]).strip() != 'nan' and str(dfCondition['Option Code'][j]).strip() != '':
+                            optionCode = str(dfCondition['Option Code'][j]).strip()
+                        else:
+                            optionCode = ""
                         # if optionCode == '/DC' and str(dfMergeResultS['MS Code'][i]) == 'UM33A-020-00/DC':
                         #     print()
                         if bool(re.search(mscode, str(dfMergeResultS['MS Code'][i]))):
@@ -914,7 +918,7 @@ class Ui_MainWindow(QMainWindow):
                                     if str(dfCondition['MAX 착공 필요'][j]) != 'nan' and str(dfCondition['MAX 착공 필요'][j]) != '' and str(dfCondition['MAX 착공 필요'][j]) != '-':
                                         dfMergeResultS['MAX 착공 필요'][i] = '대상'
                                         dfMergeResultS['착공비율(%)'][i] = 1.0
-                            elif mscode != '.....-...-..':
+                            elif mscode != '.....-...-..' and mscode != '.....' and mscode != '....':
                                 if dfCondition['특수 구분 (우선 순위)'][j] == '특수':
                                     if dfMergeResultS['특수사양'][i] == "":
                                         dfMergeResultS['특수사양'][i] = str(dfCondition['No'][j])
